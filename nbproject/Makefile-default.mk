@@ -51,17 +51,17 @@ OBJECTDIR=build/${CND_CONF}/${IMAGE_TYPE}
 DISTDIR=dist/${CND_CONF}/${IMAGE_TYPE}
 
 # Source Files Quoted if spaced
-SOURCEFILES_QUOTED_IF_SPACED=main.c scheduler.c
+SOURCEFILES_QUOTED_IF_SPACED=main.c scheduler.c parser.c
 
 # Object Files Quoted if spaced
-OBJECTFILES_QUOTED_IF_SPACED=${OBJECTDIR}/main.o ${OBJECTDIR}/scheduler.o
-POSSIBLE_DEPFILES=${OBJECTDIR}/main.o.d ${OBJECTDIR}/scheduler.o.d
+OBJECTFILES_QUOTED_IF_SPACED=${OBJECTDIR}/main.o ${OBJECTDIR}/scheduler.o ${OBJECTDIR}/parser.o
+POSSIBLE_DEPFILES=${OBJECTDIR}/main.o.d ${OBJECTDIR}/scheduler.o.d ${OBJECTDIR}/parser.o.d
 
 # Object Files
-OBJECTFILES=${OBJECTDIR}/main.o ${OBJECTDIR}/scheduler.o
+OBJECTFILES=${OBJECTDIR}/main.o ${OBJECTDIR}/scheduler.o ${OBJECTDIR}/parser.o
 
 # Source Files
-SOURCEFILES=main.c scheduler.c
+SOURCEFILES=main.c scheduler.c parser.c
 
 
 
@@ -101,6 +101,12 @@ ${OBJECTDIR}/scheduler.o: scheduler.c  .generated_files/flags/default/18031c975a
 	@${RM} ${OBJECTDIR}/scheduler.o 
 	${MP_CC} $(MP_EXTRA_CC_PRE)  scheduler.c  -o ${OBJECTDIR}/scheduler.o  -c -mcpu=$(MP_PROCESSOR_OPTION)  -MP -MMD -MF "${OBJECTDIR}/scheduler.o.d"      -g -D__DEBUG   -mno-eds-warn  -omf=elf -DXPRJ_default=$(CND_CONF)    $(COMPARISON_BUILD)  -O0 -msmart-io=1 -Wall -msfr-warn=off    -mdfp="${DFP_DIR}/xc16"
 	
+${OBJECTDIR}/parser.o: parser.c  .generated_files/flags/default/9af3603cf2342f40f7f7a8d972b636b33e9551d5 .generated_files/flags/default/da39a3ee5e6b4b0d3255bfef95601890afd80709
+	@${MKDIR} "${OBJECTDIR}" 
+	@${RM} ${OBJECTDIR}/parser.o.d 
+	@${RM} ${OBJECTDIR}/parser.o 
+	${MP_CC} $(MP_EXTRA_CC_PRE)  parser.c  -o ${OBJECTDIR}/parser.o  -c -mcpu=$(MP_PROCESSOR_OPTION)  -MP -MMD -MF "${OBJECTDIR}/parser.o.d"      -g -D__DEBUG   -mno-eds-warn  -omf=elf -DXPRJ_default=$(CND_CONF)    $(COMPARISON_BUILD)  -O0 -msmart-io=1 -Wall -msfr-warn=off    -mdfp="${DFP_DIR}/xc16"
+	
 else
 ${OBJECTDIR}/main.o: main.c  .generated_files/flags/default/6c3aa63f97da832ea2488b18c4f3e79e365ca49a .generated_files/flags/default/da39a3ee5e6b4b0d3255bfef95601890afd80709
 	@${MKDIR} "${OBJECTDIR}" 
@@ -113,6 +119,12 @@ ${OBJECTDIR}/scheduler.o: scheduler.c  .generated_files/flags/default/1e2570041c
 	@${RM} ${OBJECTDIR}/scheduler.o.d 
 	@${RM} ${OBJECTDIR}/scheduler.o 
 	${MP_CC} $(MP_EXTRA_CC_PRE)  scheduler.c  -o ${OBJECTDIR}/scheduler.o  -c -mcpu=$(MP_PROCESSOR_OPTION)  -MP -MMD -MF "${OBJECTDIR}/scheduler.o.d"      -mno-eds-warn  -g -omf=elf -DXPRJ_default=$(CND_CONF)    $(COMPARISON_BUILD)  -O0 -msmart-io=1 -Wall -msfr-warn=off    -mdfp="${DFP_DIR}/xc16"
+	
+${OBJECTDIR}/parser.o: parser.c  .generated_files/flags/default/cd63974f3fa6bebcb31bdaa651898e702ce84fab .generated_files/flags/default/da39a3ee5e6b4b0d3255bfef95601890afd80709
+	@${MKDIR} "${OBJECTDIR}" 
+	@${RM} ${OBJECTDIR}/parser.o.d 
+	@${RM} ${OBJECTDIR}/parser.o 
+	${MP_CC} $(MP_EXTRA_CC_PRE)  parser.c  -o ${OBJECTDIR}/parser.o  -c -mcpu=$(MP_PROCESSOR_OPTION)  -MP -MMD -MF "${OBJECTDIR}/parser.o.d"      -mno-eds-warn  -g -omf=elf -DXPRJ_default=$(CND_CONF)    $(COMPARISON_BUILD)  -O0 -msmart-io=1 -Wall -msfr-warn=off    -mdfp="${DFP_DIR}/xc16"
 	
 endif
 

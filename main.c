@@ -8,6 +8,7 @@
 
 #include "xc.h"
 #include "scheduler.h"
+#include "parser.h"
 
 int main(void) {
     
