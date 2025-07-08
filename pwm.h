@@ -34,7 +34,7 @@
 #include <xc.h> // include processor files - each processor file is guarded.  
 
 void pwm_init();
-void pwm_move_forward();
+void pwm_move(int speed, int yaw);
 void pwm_stop();
 
 #ifdef	__cplusplus

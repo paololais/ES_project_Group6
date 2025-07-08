@@ -30,6 +30,7 @@
       <itemPath>pwm.c</itemPath>
       <itemPath>uart.c</itemPath>
       <itemPath>adc.c</itemPath>
+      <itemPath>timer.c</itemPath>
     </logicalFolder>
   </logicalFolder>
   <projectmakefile>Makefile</projectmakefile>

@@ -51,11 +51,24 @@ void pwm_init(){
     OC4RS = 7200;
 }
 
-void pwm_move_forward(){
-    OC1R = 0;
-    OC2R = 7200;
-    OC3R = 0;
-    OC4R = 7200;
+void pwm_move(int speed, int yaw) {
+    if (speed > 0) {
+        // move left forward -> yaw > 0
+        // move right forward -> yaw < 0
+        // move forward yaw = 0
+        OC1R = 0;
+        OC2R = speed - yaw/2;
+        OC3R = 0;
+        OC4R = speed + yaw/2;
+
+    }
+    
+    else if(speed < 0){
+        OC1R = speed + yaw/2; // ruote sx
+        OC2R = 0;
+        OC3R = speed - yaw/2; // ruote destra
+        OC4R = 0;
+    }
 }
 
 void pwm_stop(){
