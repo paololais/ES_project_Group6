@@ -31,18 +31,22 @@ void pwm_init(){
     OC3CON1bits.OCM = 0b000; // disable before to cofigure
     OC4CON1bits.OCM = 0b000; // disable before to cofigure
     
-    // selct for clock for the output compare
+    // select for clock for the output compare
     OC1CON1bits.OCTSEL = 0b111; // select the input clock  source for the OC1module 
     OC2CON1bits.OCTSEL = 0b111; // select the input clock  source for the OC1module 
     OC3CON1bits.OCTSEL = 0b111; // select the input clock  source for the OC1module 
     OC4CON1bits.OCTSEL = 0b111; // select the input clock  source for the OC1module 
      
     // as peripheral clock that is the same to microcontroller
-    OC1CON1bits.OCM = 0b110; // edge aligned PWM mode (high when OCxTMR = 0, low for OCxTMR = OCxRS)
-    OC2CON1bits.OCM = 0b110; // edge aligned PWM mode (high when OCxTMR = 0, low for OCxTMR = OCxRS)
-    OC3CON1bits.OCM = 0b110; // edge aligned PWM mode (high when OCxTMR = 0, low for OCxTMR = OCxRS)
-    OC4CON1bits.OCM = 0b110; // edge aligned PWM mode (high when OCxTMR = 0, low for OCxTMR = OCxRS)
-
+    OC1CON1bits.OCM = 0b111; // edge aligned PWM mode (high when OCxTMR = 0, low for OCxTMR = OCxRS)
+    OC2CON1bits.OCM = 0b111;
+    OC3CON1bits.OCM = 0b111; 
+    OC4CON1bits.OCM = 0b111; 
+    
+    OC1CON2bits.SYNCSEL = 0x1F;
+    OC2CON2bits.SYNCSEL = 0x1F;
+    OC3CON2bits.SYNCSEL = 0x1F;
+    OC4CON2bits.SYNCSEL = 0x1F;
     
     // set the period of the pwm at 10khz dividing fcy/pwm_freq
     OC1RS = 7200;
