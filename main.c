@@ -50,7 +50,10 @@ int main(void) {
     
     while(1){
         if(PWM_state == 1){
-            pwm_move(3600,45);
+            OC1R = 0;
+            OC2R = 0;
+            OC3R = 0;
+            OC4R = 7200;
         } else {
             pwm_stop();
         }

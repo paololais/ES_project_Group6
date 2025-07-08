@@ -44,7 +44,7 @@ void pwm_init(){
     OC4CON1bits.OCM = 0b110; // edge aligned PWM mode (high when OCxTMR = 0, low for OCxTMR = OCxRS)
 
     
-    // set the peiod of the pwm at 10khz dividing fcy/10
+    // set the period of the pwm at 10khz dividing fcy/pwm_freq
     OC1RS = 7200;
     OC2RS = 7200;
     OC3RS = 7200;
