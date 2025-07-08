@@ -6,6 +6,10 @@
                    projectFiles="true">
       <itemPath>scheduler.h</itemPath>
       <itemPath>parser.h</itemPath>
+      <itemPath>timer.h</itemPath>
+      <itemPath>pwm.h</itemPath>
+      <itemPath>uart.h</itemPath>
+      <itemPath>adc.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -23,6 +27,9 @@
       <itemPath>main.c</itemPath>
       <itemPath>scheduler.c</itemPath>
       <itemPath>parser.c</itemPath>
+      <itemPath>pwm.c</itemPath>
+      <itemPath>uart.c</itemPath>
+      <itemPath>adc.c</itemPath>
     </logicalFolder>
   </logicalFolder>
   <projectmakefile>Makefile</projectmakefile>
