@@ -38,10 +38,10 @@ void pwm_init(){
     OC4CON1bits.OCTSEL = 0b111; // select the input clock  source for the OC1module 
      
     // as peripheral clock that is the same to microcontroller
-    OC1CON1bits.OCM = 0b111; // edge aligned PWM mode (high when OCxTMR = 0, low for OCxTMR = OCxRS)
-    OC2CON1bits.OCM = 0b111;
-    OC3CON1bits.OCM = 0b111; 
-    OC4CON1bits.OCM = 0b111; 
+    OC1CON1bits.OCM = 0b110; // edge aligned PWM mode (high when OCxTMR = 0, low for OCxTMR = OCxRS)
+    OC2CON1bits.OCM = 0b110;
+    OC3CON1bits.OCM = 0b110; 
+    OC4CON1bits.OCM = 0b110; 
     
     OC1CON2bits.SYNCSEL = 0x1F;
     OC2CON2bits.SYNCSEL = 0x1F;
