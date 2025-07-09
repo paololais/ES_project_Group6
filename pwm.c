@@ -75,15 +75,15 @@ void pwm_move(int speed_rate, int yaw) {
     OC1R = OC2R = OC3R = OC4R = 0;
  
     if (left_motors >= 0) {
-        OC2R =  (uint16_t) left_motors; 
+        OC2R = left_motors; 
     } else {
-        OC1R = -(uint16_t) left_motors;
+        OC1R = -(left_motors);
     }
  
     if (right_motors >= 0) {
-        OC4R =  (uint16_t) right_motors; 
+        OC4R = right_motors; 
     } else {
-        OC3R = -(uint16_t) right_motors;
+        OC3R = -(right_motors);
     }    
 }
 
