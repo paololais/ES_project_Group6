@@ -55,24 +55,36 @@ void pwm_init(){
     OC4RS = 7200;
 }
 
-void pwm_move(int speed, int yaw) {
-    if (speed > 0) {
-        // move left forward -> yaw > 0
-        // move right forward -> yaw < 0
-        // move forward yaw = 0
-        OC1R = 0;
-        OC2R = speed - yaw/2;
-        OC3R = 0;
-        OC4R = speed + yaw/2;
-
+void pwm_move(int speed_rate, int yaw) {
+    
+    float left_motors = speed_rate - yaw/2.0f;
+    float right_motors = speed_rate + yaw/2.0f;
+    
+    // Normalize PWM values to range -100% to 100%  
+    float max_value = fmax(fabs(left_motors), fabs(right_motors));    
+    if (max_value > 100.0f) {
+        float scale = 100.0f / max_value;
+        left_motors *= scale;
+        right_motors *= scale;
     }
     
-    else if(speed < 0){
-        OC1R = speed + yaw/2; // ruote sx
-        OC2R = 0;
-        OC3R = speed - yaw/2; // ruote destra
-        OC4R = 0;
+    left_motors = left_motors/100 * 7200;
+    right_motors = right_motors/100 * 7200;
+    
+    
+    OC1R = OC2R = OC3R = OC4R = 0;
+ 
+    if (left_motors >= 0) {
+        OC2R =  (uint16_t) left_motors; 
+    } else {
+        OC1R = -(uint16_t) left_motors;
     }
+ 
+    if (right_motors >= 0) {
+        OC4R =  (uint16_t) right_motors; 
+    } else {
+        OC3R = -(uint16_t) right_motors;
+    }    
 }
 
 void pwm_stop(){

@@ -32,9 +32,10 @@
 #define	PWM_H
 
 #include <xc.h> // include processor files - each processor file is guarded.  
+#include <math.h>
 
 void pwm_init();
-void pwm_move(int speed, int yaw);
+void pwm_move(int speed_rate, int yaw);
 void pwm_stop();
 
 #ifdef	__cplusplus
