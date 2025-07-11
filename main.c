@@ -14,7 +14,23 @@
 #include "uart.h"
 #include "adc.h"
 
-int PWM_state = 0; // 0=off, 1=on
+#include <stdio.h>
+
+#define MAX_TASKS 2
+heartbeat schedInfo[MAX_TASKS];
+
+// Global variables to handle events for FSM
+// To track button pressed event to enable transition
+// between Wait and Moving states
+volatile int btn_pressed = 0; 
+
+// TODO: implementare logica in funzioni ADC del sensore IR
+// To track if obstacle has been detected under threshold
+volatile int obstacle_dtc = 0;
+// To track time no obstacle has been detected
+volatile int time_elapsed = 0;
+
+
 
 // Interrupt INT1 (button RE8)
 void __attribute__((__interrupt__, __auto_psv__)) _INT1Interrupt(){
@@ -31,9 +47,79 @@ void __attribute__((__interrupt__, __auto_psv__)) _T3Interrupt(){
   IEC1bits.INT1IE = 1;
 
   if (PORTEbits.RE8 == 1) {
-      PWM_state = !PWM_state;
+      btn_pressed = 1;
   }
 }
+
+// PERIODIC TASKS
+void task_blink_led(){
+    LATAbits.LATA0 = !LATAbits.LATA0;
+}
+
+void task_blink_lights(){
+    LATBbits.LATB8 = !LATBbits.LATB8;
+    LATFbits.LATF1 = !LATFbits.LATF1;
+}
+
+
+// STATE MACHINE
+typedef enum {
+    STATE_WAIT_FOR_START,
+    STATE_MOVING,
+    STATE_EMERGENCY
+} State;
+
+void FSM(State *currentState) {
+    switch (*currentState) {
+        case STATE_WAIT_FOR_START: 
+            // No motion
+            pwm_move(0,0);
+            
+            // if button RE8 has been pressed: transition to Moving state
+            if(btn_pressed){
+                btn_pressed = 0; // reset event
+                *currentState = STATE_MOVING;            
+            }
+            
+            break;
+
+        case STATE_MOVING:
+            // Motion
+            pwm_move(60,30);
+            
+            // if button RE8 has been pressed: transition to Wait state
+            if(btn_pressed){
+                btn_pressed = 0; // reset event
+                *currentState = STATE_WAIT_FOR_START;             
+            }
+            
+            // if obstacle detected under threshold: transition to Emergency state
+            if(obstacle_dtc){
+                *currentState = STATE_EMERGENCY;
+                schedInfo[1].enable = 1; // enable lights blinking
+            }
+            
+            break;
+
+        case STATE_EMERGENCY:
+            // No motion
+            pwm_move(0,0);
+            
+            // No input from button RE8 -> disable interrupt INT1E
+            IEC1bits.INT1IE = 0;
+            
+            // if no obstacle detected under threshold for more than 5s: 
+            // transition to Wait state
+            if(!obstacle_dtc && time_elapsed >= 5){
+                *currentState = STATE_WAIT_FOR_START;
+                IEC1bits.INT1IE = 1; // Re enable interrupt for RE8
+                schedInfo[1].enable = 0; // Disable lights blinking
+            }
+            
+            break;
+    }
+}
+
 
 int main(void) {       
     
@@ -46,14 +132,46 @@ int main(void) {
     IFS1bits.INT1IF = 0;
     IEC1bits.INT1IE = 1;
     
+    // LED A0
+    TRISAbits.TRISA0 = 0; // LED output
+    LATAbits.LATA0 = 0; // switch off LED at the beginning
+    
+    // RB8 Left side lights - RF1 Right-side lights
+    TRISBbits.TRISB8 = 0; LATBbits.LATB8 = 0;
+    TRISFbits.TRISF1 = 0; LATFbits.LATF1 = 0;
+    
+    // Scheduler configuration        
+    // Led blink
+    schedInfo[0].n = 0;
+    schedInfo[0].N = 250;
+    schedInfo[0].f = (void (*)(void *))task_blink_led;
+    schedInfo[0].params = NULL;
+    schedInfo[0].enable = 1;
+    
+    // Left and right lights blink
+    schedInfo[1].n = 0;
+    schedInfo[1].N = 250;
+    schedInfo[1].f = (void (*)(void *))task_blink_lights;
+    schedInfo[1].params = NULL;
+    schedInfo[1].enable = 0;    // Enable only in Emergency state
+    
+    // initialize devices
     pwm_init();
     
+    // Current state initialization for FSM
+    State currentState = STATE_WAIT_FOR_START;
+    
+    // Control loop frequency 500 Hz (2ms))
+    tmr_setup_period(TIMER1, 2);
+    
     while(1){
-        if(PWM_state == 1){
-            pwm_move(60,30);
-        } else {
-            pwm_stop();
-        }
+        // FSM function handles transitions between states and actions accordingly
+        // to the specific currentState
+        FSM(&currentState);
+                
+        scheduler(schedInfo, MAX_TASKS);
+        
+        tmr_wait_period(TIMER1);
     }
     
     return 0;

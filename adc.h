@@ -33,9 +33,7 @@
 
 #include <xc.h> // include processor files - each processor file is guarded.  
 
-void adc_init1();
-void adc_init2();
-void adc_init3_v2();
+void adc_init();
 
 #ifdef	__cplusplus
 extern "C" {
