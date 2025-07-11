@@ -28,9 +28,8 @@ volatile int btn_pressed = 0;
 // To track if obstacle has been detected under threshold
 volatile int obstacle_dtc = 0;
 // To track time no obstacle has been detected
+// condition time >= 2500 (5s = 5000ms = 2500 Heartbeat)
 volatile int time_elapsed = 0;
-
-
 
 // Interrupt INT1 (button RE8)
 void __attribute__((__interrupt__, __auto_psv__)) _INT1Interrupt(){
@@ -71,50 +70,61 @@ typedef enum {
 
 void FSM(State *currentState) {
     switch (*currentState) {
-        case STATE_WAIT_FOR_START: 
+        case STATE_WAIT_FOR_START:             
+            // if button RE8 has been pressed: transition to "Moving" state
+            if(btn_pressed){
+                btn_pressed = 0; // reset event
+                *currentState = STATE_MOVING;
+                break;
+            }
+            
             // No motion
             pwm_move(0,0);
             
-            // if button RE8 has been pressed: transition to Moving state
-            if(btn_pressed){
-                btn_pressed = 0; // reset event
-                *currentState = STATE_MOVING;            
-            }
-            
             break;
 
-        case STATE_MOVING:
-            // Motion
-            pwm_move(60,30);
-            
-            // if button RE8 has been pressed: transition to Wait state
+        case STATE_MOVING:            
+            // if button RE8 has been pressed: transition to "Wait for start" state
             if(btn_pressed){
                 btn_pressed = 0; // reset event
-                *currentState = STATE_WAIT_FOR_START;             
+                *currentState = STATE_WAIT_FOR_START;    
+                break;
             }
             
-            // if obstacle detected under threshold: transition to Emergency state
+            // if obstacle detected under threshold: transition to "Emergency" state
             if(obstacle_dtc){
                 *currentState = STATE_EMERGENCY;
                 schedInfo[1].enable = 1; // enable lights blinking
+                break;
             }
+            
+            // Motion
+            pwm_move(60,30); //example, this should have user input as parameters
             
             break;
 
-        case STATE_EMERGENCY:
-            // No motion
-            pwm_move(0,0);
+        case STATE_EMERGENCY:                        
+            // if no obstacle detected under threshold for more than 5s: 
+            // transition to "Wait for start" state
+            if(!obstacle_dtc){
+                time_elapsed++;                
+                if(time_elapsed >= 2500){
+                    time_elapsed = 0;
+                    *currentState = STATE_WAIT_FOR_START;
+                    IEC1bits.INT1IE = 1; // Re enable interrupt for RE8
+                    schedInfo[1].enable = 0; // Disable lights blinking
+                    break;
+                }
+            } else {
+                // Obstacle encountered: reset time_elapsed to zero
+                time_elapsed = 0; 
+            }
             
             // No input from button RE8 -> disable interrupt INT1E
             IEC1bits.INT1IE = 0;
             
-            // if no obstacle detected under threshold for more than 5s: 
-            // transition to Wait state
-            if(!obstacle_dtc && time_elapsed >= 5){
-                *currentState = STATE_WAIT_FOR_START;
-                IEC1bits.INT1IE = 1; // Re enable interrupt for RE8
-                schedInfo[1].enable = 0; // Disable lights blinking
-            }
+            // No motion
+            pwm_move(0,0);            
             
             break;
     }
