@@ -137,7 +137,6 @@ void task_UartBatt(){
     IEC0bits.U1TXIE = 1;
 }
 
-/*
 void task_UartAcc(ACCavg* avg){
     int x_avg = 0;
     int y_avg = 0;
@@ -171,18 +170,7 @@ void task_UartAcc(ACCavg* avg){
     }
     IEC0bits.U1TXIE = 1;
 }
- */
 
-void task_UartAcc(ACCavg* avg){
-    Values values = read_acc();
-    
-    sprintf(buffer, "$MACC,%d,%d,%d*\r\n", values.valuex, values.valuey, values.valuez);
-    IEC0bits.U1TXIE = 0;
-    for (int i = 0; i < strlen(buffer); i++) {
-        cb_push(&cb_tx, buffer[i]);
-    }
-    IEC0bits.U1TXIE = 1;
-}
 
 // STATE MACHINE
 typedef enum {
