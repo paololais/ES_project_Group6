@@ -36,7 +36,7 @@ volatile int time_elapsed = 0;
 void __attribute__((__interrupt__, __auto_psv__)) _INT1Interrupt(){
   IFS1bits.INT1IF = 0; 
   IEC0bits.T3IE = 1; // 
-  tmr_setup_period(TIMER2, 10); 
+  tmr_setup_period(TIMER3, 10); 
 }
 
 // Interrupt Timer 3 for debouncing
@@ -114,6 +114,8 @@ void FSM(State *currentState) {
             if(obstacle_dtc){
                 *currentState = STATE_EMERGENCY;
                 schedInfo[1].enable = 1; // enable lights blinking
+                // No input from button RE8 -> disable interrupt INT1E
+                IEC1bits.INT1IE = 0;
                 break;
             }
             
@@ -132,15 +134,13 @@ void FSM(State *currentState) {
                     *currentState = STATE_WAIT_FOR_START;
                     IEC1bits.INT1IE = 1; // Re enable interrupt for RE8
                     schedInfo[1].enable = 0; // Disable lights blinking
+                    LATBbits.LATB8 = 0; LATFbits.LATF1 = 0; // switch off lights
                     break;
                 }
             } else {
                 // Obstacle encountered: reset time_elapsed to zero
                 time_elapsed = 0;
-            }
-            
-            // No input from button RE8 -> disable interrupt INT1E
-            IEC1bits.INT1IE = 0;
+            }            
             
             // No motion
             pwm_move(0,0);            
