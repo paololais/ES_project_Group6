@@ -16,9 +16,10 @@
 
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 
 #define DISTANCE_THRESHOLD 15 // 15 CM
-#define MAX_TASKS 2
+#define MAX_TASKS 4
 heartbeat schedInfo[MAX_TASKS];
 
 // Global variables to handle events for FSM
@@ -31,6 +32,9 @@ volatile int obstacle_dtc = 0;
 // To track time no obstacle has been detected
 // if time >= 2500 (5s = 5000ms = 2500 Heartbeat)
 volatile int time_elapsed = 0;
+
+volatile CircularBuffer cb_tx;
+char buffer[32];
 
 // Interrupt INT1 (button RE8)
 void __attribute__((__interrupt__, __auto_psv__)) _INT1Interrupt(){
@@ -51,19 +55,9 @@ void __attribute__((__interrupt__, __auto_psv__)) _T3Interrupt(){
   }
 }
 
-// PERIODIC TASKS
-void task_blink_led(){
-    LATAbits.LATA0 = !LATAbits.LATA0;
-}
-
-void task_blink_lights(){
-    LATBbits.LATB8 = !LATBbits.LATB8;
-    LATFbits.LATF1 = !LATFbits.LATF1;
-}
-
-
+// ADC
 // read distance from IR sensor
-void read_IR(){    
+int read_IR(){    
     AD1CON1bits.SAMP = 0;
     while (!AD1CON1bits.DONE);
     unsigned int adc_val = ADC1BUF1; // Raw ADC value
@@ -78,6 +72,68 @@ void read_IR(){
     int distance = (int)round(raw_distance);
        
     obstacle_dtc = (distance < DISTANCE_THRESHOLD) ? 1 : 0;
+    
+    return distance;
+}
+
+// read battery voltage
+int read_battery(){
+    AD1CON1bits.SAMP = 0;
+    while (!AD1CON1bits.DONE);
+    unsigned int adc_val = ADC1BUF0; // Raw ADC value
+    AD1CON1bits.SAMP = 1;
+    double battery_voltage = (adc_val / 1023.0) * 3.3 / 3.0;
+    
+    return battery_voltage;
+}
+
+// UART
+// Interrupt UART TX
+void __attribute__((__interrupt__, __auto_psv__)) _U1TXInterrupt() {
+    IFS0bits.U1TXIF = 0; // Clear the TX interrupt flag
+    
+    char c;
+    
+    while(U1STAbits.UTXBF == 0){
+        // If there are characters in the TX buffer, send them
+        if (!cb_is_empty(&cb_tx)) {
+            cb_pop(&cb_tx, &c); // Pop a character from the TX buffer
+            U1TXREG = c;        // Write the character to the UART TX register
+        } else {
+            IEC0bits.U1TXIE = 0;
+            break;
+        }
+    }
+}
+
+// PERIODIC TASKS
+void task_blink_led(){
+    LATAbits.LATA0 = !LATAbits.LATA0;
+}
+
+void task_blink_lights(){
+    LATBbits.LATB8 = !LATBbits.LATB8;
+    LATFbits.LATF1 = !LATFbits.LATF1;
+}
+
+void task_UartIR(int* distance){
+    sprintf(buffer, "$MDIST,", &distance);
+    IEC0bits.U1TXIE = 0;
+    for (int i = 0; i < strlen(buffer); i++) {
+        cb_push(&cb_tx, buffer[i]);
+    }
+    IEC0bits.U1TXIE = 1;
+}
+
+void task_UartBatt(){
+    double battery_v = read_battery();
+    
+    sprintf(buffer, "$MBATT,", battery_v);
+    IEC0bits.U1TXIE = 0;
+    for (int i = 0; i < strlen(buffer); i++) {
+        cb_push(&cb_tx, buffer[i]);
+    }
+    IEC0bits.U1TXIE = 1;
 }
 
 // STATE MACHINE
@@ -131,10 +187,12 @@ void FSM(State *currentState) {
                 time_elapsed++;                
                 if(time_elapsed >= 2500){
                     time_elapsed = 0;
-                    *currentState = STATE_WAIT_FOR_START;
-                    IEC1bits.INT1IE = 1; // Re enable interrupt for RE8
                     schedInfo[1].enable = 0; // Disable lights blinking
                     LATBbits.LATB8 = 0; LATFbits.LATF1 = 0; // switch off lights
+                    
+                    *currentState = STATE_WAIT_FOR_START;
+                    IFS1bits.INT1IF = 0; // Reset interrupt flag
+                    IEC1bits.INT1IE = 1; // Re enable interrupt for RE8
                     break;
                 }
             } else {
@@ -169,6 +227,9 @@ int main(void) {
     TRISBbits.TRISB8 = 0; LATBbits.LATB8 = 0;
     TRISFbits.TRISF1 = 0; LATFbits.LATF1 = 0;
     
+    // Variable for UART TASK parameters
+    int distance = 0;
+    
     // Scheduler configuration        
     // Led blink
     schedInfo[0].n = 0;
@@ -184,9 +245,27 @@ int main(void) {
     schedInfo[1].params = NULL;
     schedInfo[1].enable = 0;    // Enable only in Emergency state
     
+    // UART IR message TX - 100Hz
+    schedInfo[2].n = 0;
+    schedInfo[2].N = 50;
+    schedInfo[2].f = (void (*)(void *))task_UartIR;
+    schedInfo[2].params = &distance;
+    schedInfo[2].enable = 1;
+    
+    // UART IR message TX - 1Hz
+    schedInfo[3].n = 0;
+    schedInfo[3].N = 500;
+    schedInfo[3].f = (void (*)(void *))task_UartBatt;
+    schedInfo[3].params = NULL;
+    schedInfo[3].enable = 1;
+    
     // initialize devices
     pwm_init();
-    adc_init();    
+    adc_init();
+    UART1_Init(); // initialize UART1
+    
+    // Circular buffers initialization
+    cb_init(&cb_tx);
     
     // Current state initialization for FSM
     State currentState = STATE_WAIT_FOR_START;
@@ -196,7 +275,7 @@ int main(void) {
     
     while(1){
         // IR sensor reading, crucial for the control loop and FSM
-        read_IR();
+        distance = read_IR();
         
         // FSM function handles transitions between states and actions
         FSM(&currentState);
