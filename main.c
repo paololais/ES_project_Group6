@@ -34,8 +34,17 @@ volatile int obstacle_dtc = 0;
 // if time >= 2500 (5s = 5000ms = 2500 Heartbeat)
 volatile int time_elapsed = 0;
 
+int ref_speed = 0;
+int ref_yawrate = 0;
+
+// circular buffer for TX
 volatile CircularBuffer cb_tx;
 char buffer[64];
+// circular buffer for RX
+// used to receive rate by user
+volatile CircularBuffer cb_rx;
+
+parser_state pstate;
 
 //Button RE8
 // Interrupt INT1 (button RE8)
@@ -88,6 +97,8 @@ int read_battery(){
     return battery_voltage;
 }
 
+
+
 // UART
 // Interrupt UART TX
 void __attribute__((__interrupt__, __auto_psv__)) _U1TXInterrupt() {
@@ -106,6 +117,84 @@ void __attribute__((__interrupt__, __auto_psv__)) _U1TXInterrupt() {
         }
     }
 }
+
+// Interrupt UART RX
+void __attribute__((__interrupt__, __auto_psv__)) _U1RXInterrupt() {
+    char receivedChar = U1RXREG; // reads the received character
+    cb_push(&cb_rx, receivedChar);
+    IFS0bits.U1RXIF = 0; // Reset flag interrupt
+}
+
+// On entry Emergency state send: $MEMRG,1* 
+// On exit send: $MEMRG,0*
+void uartMEMRG(int emrg){
+    sprintf(buffer, " $MEMRG,%d*\r\n", emrg);
+    IEC0bits.U1TXIE = 0;
+    for (int i = 0; i < strlen(buffer); i++) {
+        cb_push(&cb_tx, buffer[i]);
+    }
+    IEC0bits.U1TXIE = 1;
+}
+
+// Acknowledgment message
+// Positive ack if switch command received in Wait/Moving states: $MACK,1*
+// Negative ack if switch command received in Emergency state: $MACK,0*
+void uartMACK(int ack){
+    sprintf(buffer, " $MACK,%d*\r\n", ack);
+    IEC0bits.U1TXIE = 0;
+    for (int i = 0; i < strlen(buffer); i++) {
+        cb_push(&cb_tx, buffer[i]);
+    }
+    IEC0bits.U1TXIE = 1;
+}
+
+// Handle received UART messages
+void processReceivedData(State* currentState) {
+    char receivedChar;
+    
+    // If there are characters in the buffer
+    while (!cb_is_empty(&cb_rx)) {
+        //Critical region
+        IEC0bits.U1RXIE = 0;   // Disable RX interrupt
+        cb_pop(&cb_rx, &receivedChar); // Pop the character from the buffer
+        IEC0bits.U1RXIE = 1;   // Enable RX interrupt
+        
+        int result = parse_byte(&pstate, receivedChar);  
+        if(result){
+            if(!strcmp(pstate.msg_type,"PCREF")){
+                int i = 0;
+                ref_speed = extract_integer(pstate.msg_payload);
+                i = next_value(pstate.msg_payload, i);
+                ref_yawrate = extract_integer(&pstate.msg_payload[i]);
+            }
+            else if(!strcmp(pstate.msg_type,"PCSTP")){
+                if(*currentState == STATE_EMERGENCY){
+                    uartMACK(0);
+                    break;
+                }
+                else {                    
+                    if(*currentState == STATE_MOVING){
+                        *currentState = STATE_WAIT_FOR_START;
+                    }
+                    uartMACK(1);
+                }  
+            }
+            else if(!strcmp(pstate.msg_type,"PCSTT")){
+                if(*currentState == STATE_EMERGENCY){
+                    uartMACK(0);
+                    break;
+                }
+                else {                    
+                    if(*currentState == STATE_WAIT_FOR_START){
+                        *currentState = STATE_MOVING;
+                    }
+                    uartMACK(1);
+                }                   
+            }
+        }  
+    }
+}
+
 
 // PERIODIC TASKS
 void task_blink_led(){
@@ -205,14 +294,14 @@ void FSM(State *currentState) {
             // if obstacle detected under threshold: transition to "Emergency" state
             if(obstacle_dtc){
                 *currentState = STATE_EMERGENCY;
-                schedInfo[1].enable = 1; // enable lights blinking
-                // No input from button RE8 -> disable interrupt INT1E
-                IEC1bits.INT1IE = 0;
+                schedInfo[1].enable = 1; // enable lights blinking                
+                IEC1bits.INT1IE = 0; // No input from button RE8 -> disable interrupt INT1E
+                uartMEMRG(1); // send UART message
                 break;
             }
             
             // Motion
-            pwm_move(60,30); //example, this should have user input as parameters
+            pwm_move(ref_speed, ref_yawrate);
             
             break;
 
@@ -225,10 +314,11 @@ void FSM(State *currentState) {
                     time_elapsed = 0;
                     schedInfo[1].enable = 0; // Disable lights blinking
                     LATBbits.LATB8 = 0; LATFbits.LATF1 = 0; // switch off lights
+                    uartMEMRG(0); // send UART message
                     
                     *currentState = STATE_WAIT_FOR_START;
                     IFS1bits.INT1IF = 0; // Reset interrupt flag
-                    IEC1bits.INT1IE = 1; // Re enable interrupt for RE8
+                    IEC1bits.INT1IE = 1; // Re enable interrupt for RE8                    
                     break;
                 }
             } else {
@@ -315,7 +405,12 @@ int main(void) {
     
     // Circular buffers initialization
     cb_init(&cb_tx);
-    //cb_init(&cb_rx);
+    cb_init(&cb_rx);
+    
+    // Parser initialization
+    pstate.state = STATE_DOLLAR;
+    pstate.index_type = 0; 
+    pstate.index_payload = 0;
     
     // Current state initialization for FSM
     State currentState = STATE_WAIT_FOR_START;
@@ -329,8 +424,12 @@ int main(void) {
         
         // FSM function handles transitions between states and actions
         FSM(&currentState);
-                
+        
+        // Schedule periodic enabled tasks
         scheduler(schedInfo, MAX_TASKS);
+        
+        // Handle incoming UART messages
+        processReceivedData(&currentState);
         
         tmr_wait_period(TIMER1);
     }
