@@ -102,4 +102,6 @@ Values read_acc() {
     if (SPI1STATbits.SPIROV == 1){
         SPI1STATbits.SPIROV = 0;
     }
+    
+    return values;
 }
