@@ -117,7 +117,7 @@ void task_blink_lights(){
 }
 
 void task_UartIR(int* distance){
-    sprintf(buffer, "$MDIST,", &distance);
+    sprintf(buffer, "$MDIST,%d*", &distance);
     IEC0bits.U1TXIE = 0;
     for (int i = 0; i < strlen(buffer); i++) {
         cb_push(&cb_tx, buffer[i]);
@@ -128,7 +128,7 @@ void task_UartIR(int* distance){
 void task_UartBatt(){
     double battery_v = read_battery();
     
-    sprintf(buffer, "$MBATT,", battery_v);
+    sprintf(buffer, "$MBATT,%.2f*", battery_v);
     IEC0bits.U1TXIE = 0;
     for (int i = 0; i < strlen(buffer); i++) {
         cb_push(&cb_tx, buffer[i]);
