@@ -13,6 +13,7 @@
 #include "timer.h"
 #include "uart.h"
 #include "adc.h"
+#include "spi.h"
 
 #include <stdio.h>
 #include <math.h>
@@ -36,13 +37,13 @@ volatile int time_elapsed = 0;
 volatile CircularBuffer cb_tx;
 char buffer[32];
 
+//Button RE8
 // Interrupt INT1 (button RE8)
 void __attribute__((__interrupt__, __auto_psv__)) _INT1Interrupt(){
   IFS1bits.INT1IF = 0; 
   IEC0bits.T3IE = 1; // 
   tmr_setup_period(TIMER3, 10); 
 }
-
 // Interrupt Timer 3 for debouncing
 void __attribute__((__interrupt__, __auto_psv__)) _T3Interrupt(){
   IFS0bits.T3IF = 0;
@@ -117,7 +118,7 @@ void task_blink_lights(){
 }
 
 void task_UartIR(int* distance){
-    sprintf(buffer, "$MDIST,%d*", &distance);
+    sprintf(buffer, "$MDIST,%d*\r\n", *distance);
     IEC0bits.U1TXIE = 0;
     for (int i = 0; i < strlen(buffer); i++) {
         cb_push(&cb_tx, buffer[i]);
@@ -128,7 +129,41 @@ void task_UartIR(int* distance){
 void task_UartBatt(){
     double battery_v = read_battery();
     
-    sprintf(buffer, "$MBATT,%.2f*", battery_v);
+    sprintf(buffer, "$MBATT,%.2f*\r\n", battery_v);
+    IEC0bits.U1TXIE = 0;
+    for (int i = 0; i < strlen(buffer); i++) {
+        cb_push(&cb_tx, buffer[i]);
+    }
+    IEC0bits.U1TXIE = 1;
+}
+
+void task_UartAcc(ACCavg* avg){
+    int x_avg = 0;
+    int y_avg = 0;
+    int z_avg = 0;
+        
+    Values values = read_acc();
+    
+    avg->x[avg->sample_counter] = values.valuex;
+    avg->y[avg->sample_counter] = values.valuey;
+    avg->z[avg->sample_counter] = values.valuez;
+    
+    avg->sample_counter++;
+    if (avg->sample_counter == 5){
+        avg->sample_counter = 0;
+    }
+    
+    for(int i = 0; i < 5; i++){
+        x_avg += avg->x[i];
+        y_avg += avg->y[i];
+        z_avg += avg->z[i];
+    }
+    
+    x_avg = x_avg / 5;   
+    y_avg = y_avg / 5;
+    z_avg = z_avg / 5;
+    
+    sprintf(buffer, "$MACC,%d,%d,%d*\r\n", x_avg, y_avg, z_avg);
     IEC0bits.U1TXIE = 0;
     for (int i = 0; i < strlen(buffer); i++) {
         cb_push(&cb_tx, buffer[i]);
@@ -227,8 +262,10 @@ int main(void) {
     TRISBbits.TRISB8 = 0; LATBbits.LATB8 = 0;
     TRISFbits.TRISF1 = 0; LATFbits.LATF1 = 0;
     
-    // Variable for UART TASK parameters
-    int distance = 0;
+    // Variables for tasks parameters
+    int distance = 0; 
+    ACCavg avg;
+    avg.sample_counter = 0;
     
     // Scheduler configuration        
     // Led blink
@@ -252,20 +289,32 @@ int main(void) {
     schedInfo[2].params = &distance;
     schedInfo[2].enable = 1;
     
-    // UART IR message TX - 1Hz
+    // UART Battery message TX - 1Hz
     schedInfo[3].n = 0;
     schedInfo[3].N = 500;
     schedInfo[3].f = (void (*)(void *))task_UartBatt;
     schedInfo[3].params = NULL;
     schedInfo[3].enable = 1;
     
-    // initialize devices
+    // UART Accelerometer message TX - 100Hz
+    schedInfo[4].n = 0;
+    schedInfo[4].N = 50;
+    schedInfo[4].f = (void (*)(void *))task_UartAcc;
+    schedInfo[4].params = &avg;
+    schedInfo[4].enable = 1;
+    
+    // Initialize devices
     pwm_init();
     adc_init();
-    UART1_Init(); // initialize UART1
+    UART1_Init();
+    spi_init();
+    
+    // Enable SPI accelerometer
+    acc_enable();
     
     // Circular buffers initialization
     cb_init(&cb_tx);
+    //cb_init(&cb_rx);
     
     // Current state initialization for FSM
     State currentState = STATE_WAIT_FOR_START;
