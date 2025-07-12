@@ -27,13 +27,13 @@ void UART1_Init(void) {
 }
 
 //circular buffer
-void cb_init(CircularBuffer *cb) {
+void cb_init(volatile CircularBuffer *cb) {
     cb->head = 0;
     cb->tail = 0;
     cb->count = 0;
 }
 
-void cb_push(CircularBuffer *cb, char value) {
+void cb_push(volatile CircularBuffer *cb, char value) {
     if (cb->count == BUFFER_SIZE){
          // Buffer full: overwrite oldest
         cb->tail = (cb->tail + 1) % BUFFER_SIZE;
@@ -44,12 +44,12 @@ void cb_push(CircularBuffer *cb, char value) {
     cb->count++;
 }
 
-void cb_pop(CircularBuffer *cb, char *value) {
+void cb_pop(volatile CircularBuffer *cb, char *value) {
     *value = cb->buffer[cb->tail]; // read the value
     cb->tail = (cb->tail + 1) % BUFFER_SIZE; // increment circularly
     cb->count--;
 }
 
-int cb_is_empty(CircularBuffer *cb) {
+int cb_is_empty(volatile CircularBuffer *cb) {
     return cb->count == 0;
 }

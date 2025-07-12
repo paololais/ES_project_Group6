@@ -23,6 +23,12 @@
 #define MAX_TASKS 5
 heartbeat schedInfo[MAX_TASKS];
 
+typedef enum {
+    STATE_WAIT_FOR_START,
+    STATE_MOVING,
+    STATE_EMERGENCY
+} State;
+
 // Global variables to handle events for FSM
 // To track button pressed event to enable transition
 // between Wait and Moving states
@@ -262,12 +268,6 @@ void task_UartAcc(ACCavg* avg){
 
 
 // STATE MACHINE
-typedef enum {
-    STATE_WAIT_FOR_START,
-    STATE_MOVING,
-    STATE_EMERGENCY
-} State;
-
 void FSM(State *currentState) {
     switch (*currentState) {
         case STATE_WAIT_FOR_START:             

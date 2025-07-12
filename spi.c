@@ -55,7 +55,6 @@ unsigned int spi_write(unsigned int data){
 void acc_enable(){
     unsigned int addr = 0x0010;
     unsigned int macro = 0b00001100;
-    unsigned int value = 0;
     
     ACC_CS = 0;
     spi_write(addr);

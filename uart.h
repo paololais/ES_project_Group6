@@ -46,10 +46,10 @@ typedef struct {
     int count; // number of elements in the buffer
 } CircularBuffer;
 
-void cb_init(CircularBuffer *cb);
-void cb_push(CircularBuffer *cb, char value);
-void cb_pop(CircularBuffer *cb, char *value);
-int cb_is_empty(CircularBuffer *cb);
+void cb_init(volatile CircularBuffer *cb);
+void cb_push(volatile CircularBuffer *cb, char value);
+void cb_pop(volatile CircularBuffer *cb, char *value);
+int cb_is_empty(volatile CircularBuffer *cb);
 
 void UART1_Init();
 
