@@ -1,27 +1,34 @@
 #include "adc.h"
 
-void adc_init() {       
-    // IR sensor config as analog
+void adc_init() {
+    AD1CON1bits.ADON = 0;
+    AD1CON3bits.ADCS = 8; // TAD = Tcy * (8+1) = 125 ns
+    AD1CON1bits.FORM = 0; // Output in integer format
+
+    // automatic start - automatic conversion
+    AD1CON1bits.ASAM = 1;
+    AD1CON3bits.SAMC = 16; // sample time 16 Tad
+    AD1CON1bits.SSRC = 7; // conversion starts after time specified by SAMC
+
+    AD1CON1bits.AD12B = 0; // 10-bit mode
+
+    //set_sequential_simultaneous
+    AD1CON1bits.SIMSAM = 0;
+    AD1CON2bits.SMPI = 1;
+
+    // activate scan mode
+    AD1CON2bits.CSCNA = 1;
+
+    //set analog
     ANSELBbits.ANSB15 = 1;
-    TRISBbits.TRISB15 = 1; // RB5 input
-    
-    // battery sensor config as analog
-    TRISBbits.TRISB11 = 1;
+    TRISBbits.TRISB15 = 1;
     ANSELBbits.ANSB11 = 1;
+    TRISBbits.TRISB11 = 1;
 
-    AD1CON1bits.ADON = 0;       // Turn off ADC to configure
-    AD1CON1bits.AD12B = 0;      // 10-bit mode
-    AD1CON1bits.FORM = 0;       // Integer output
-    AD1CON1bits.SSRC = 7;       // Auto conversion after sampling
-    AD1CON1bits.ASAM = 0;       // Manual sampling
+    //add_analog_to_scan
+    AD1CSSL = 0;
+    AD1CSSLbits.CSS15 = 1;
+    AD1CSSLbits.CSS11 = 1;
 
-    AD1CON2bits.CHPS = 0;       // Use CH0 only
-    AD1CON3bits.ADRC = 0;       // Use system clock
-    AD1CON3bits.SAMC = 16;       // Not used for manual sampling
-    AD1CON3bits.ADCS = 8;       // ADC conversion clock select (Tad)
-
-    AD1CHS0bits.CH0SA = 11;     // Select AN11 as input
-    AD1CHS0bits.CH0SA = 5;      // select AN5 (RB5)
-
-    AD1CON1bits.ADON = 1;       // Turn on ADC
+    AD1CON1bits.ADON = 1;
 }

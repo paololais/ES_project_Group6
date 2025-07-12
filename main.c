@@ -15,7 +15,9 @@
 #include "adc.h"
 
 #include <stdio.h>
+#include <math.h>
 
+#define DISTANCE_THRESHOLD 15 // 15 CM
 #define MAX_TASKS 2
 heartbeat schedInfo[MAX_TASKS];
 
@@ -24,18 +26,17 @@ heartbeat schedInfo[MAX_TASKS];
 // between Wait and Moving states
 volatile int btn_pressed = 0; 
 
-// TODO: implementare logica in funzioni ADC del sensore IR
 // To track if obstacle has been detected under threshold
 volatile int obstacle_dtc = 0;
 // To track time no obstacle has been detected
-// condition time >= 2500 (5s = 5000ms = 2500 Heartbeat)
+// if time >= 2500 (5s = 5000ms = 2500 Heartbeat)
 volatile int time_elapsed = 0;
 
 // Interrupt INT1 (button RE8)
 void __attribute__((__interrupt__, __auto_psv__)) _INT1Interrupt(){
   IFS1bits.INT1IF = 0; 
   IEC0bits.T3IE = 1; // 
-  tmr_setup_period(TIMER3, 10); 
+  tmr_setup_period(TIMER2, 10); 
 }
 
 // Interrupt Timer 3 for debouncing
@@ -60,6 +61,24 @@ void task_blink_lights(){
     LATFbits.LATF1 = !LATFbits.LATF1;
 }
 
+
+// read distance from IR sensor
+void read_IR(){    
+    AD1CON1bits.SAMP = 0;
+    while (!AD1CON1bits.DONE);
+    unsigned int adc_val = ADC1BUF1; // Raw ADC value
+    AD1CON1bits.SAMP = 1;
+    double voltage = (adc_val / 1023.0) * 3.3;
+    
+    double v2 = voltage * voltage;
+    double v3 = v2 * voltage;
+    double v4 = v3 * voltage;
+    
+    double raw_distance = (2.34 - 4.74 * voltage + 4.06 * v2 - 1.60 * v3 + 0.24 * v4) * 100;
+    int distance = (int)round(raw_distance);
+       
+    obstacle_dtc = (distance < DISTANCE_THRESHOLD) ? 1 : 0;
+}
 
 // STATE MACHINE
 typedef enum {
@@ -117,7 +136,7 @@ void FSM(State *currentState) {
                 }
             } else {
                 // Obstacle encountered: reset time_elapsed to zero
-                time_elapsed = 0; 
+                time_elapsed = 0;
             }
             
             // No input from button RE8 -> disable interrupt INT1E
@@ -167,6 +186,7 @@ int main(void) {
     
     // initialize devices
     pwm_init();
+    adc_init();    
     
     // Current state initialization for FSM
     State currentState = STATE_WAIT_FOR_START;
@@ -175,8 +195,10 @@ int main(void) {
     tmr_setup_period(TIMER1, 2);
     
     while(1){
-        // FSM function handles transitions between states and actions accordingly
-        // to the specific currentState
+        // IR sensor reading, crucial for the control loop and FSM
+        read_IR();
+        
+        // FSM function handles transitions between states and actions
         FSM(&currentState);
                 
         scheduler(schedInfo, MAX_TASKS);
