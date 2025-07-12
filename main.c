@@ -29,10 +29,10 @@ heartbeat schedInfo[MAX_TASKS];
 volatile int btn_pressed = 0; 
 
 // To track if obstacle has been detected under threshold
-volatile int obstacle_dtc = 0;
+int obstacle_dtc = 0;
 // To track time no obstacle has been detected
 // if time >= 2500 (5s = 5000ms = 2500 Heartbeat)
-volatile int time_elapsed = 0;
+int time_elapsed = 0;
 
 int ref_speed = 0;
 int ref_yawrate = 0;
