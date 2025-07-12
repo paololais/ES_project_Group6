@@ -35,7 +35,7 @@ volatile int obstacle_dtc = 0;
 volatile int time_elapsed = 0;
 
 volatile CircularBuffer cb_tx;
-char buffer[32];
+char buffer[64];
 
 //Button RE8
 // Interrupt INT1 (button RE8)
