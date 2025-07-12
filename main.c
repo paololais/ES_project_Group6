@@ -20,7 +20,7 @@
 #include <string.h>
 
 #define DISTANCE_THRESHOLD 15 // 15 CM
-#define MAX_TASKS 4
+#define MAX_TASKS 5
 heartbeat schedInfo[MAX_TASKS];
 
 // Global variables to handle events for FSM
@@ -137,6 +137,7 @@ void task_UartBatt(){
     IEC0bits.U1TXIE = 1;
 }
 
+/*
 void task_UartAcc(ACCavg* avg){
     int x_avg = 0;
     int y_avg = 0;
@@ -164,6 +165,18 @@ void task_UartAcc(ACCavg* avg){
     z_avg = z_avg / 5;
     
     sprintf(buffer, "$MACC,%d,%d,%d*\r\n", x_avg, y_avg, z_avg);
+    IEC0bits.U1TXIE = 0;
+    for (int i = 0; i < strlen(buffer); i++) {
+        cb_push(&cb_tx, buffer[i]);
+    }
+    IEC0bits.U1TXIE = 1;
+}
+ */
+
+void task_UartAcc(ACCavg* avg){
+    Values values = read_acc();
+    
+    sprintf(buffer, "$MACC,%d,%d,%d*\r\n", values.valuex, values.valuey, values.valuez);
     IEC0bits.U1TXIE = 0;
     for (int i = 0; i < strlen(buffer); i++) {
         cb_push(&cb_tx, buffer[i]);
