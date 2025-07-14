@@ -86,10 +86,3 @@ void pwm_move(int speed_rate, int yaw) {
         OC3R = -(right_motors);
     }    
 }
-
-void pwm_stop(){
-    OC1R = 0;
-    OC2R = 0;
-    OC3R = 0;
-    OC4R = 0;
-}

@@ -37,24 +37,38 @@
 #define MAG_CS LATDbits.LATD6
 #define GYR_CS LATBbits.LATB4
 
+// Structure to store a single accelerometer measurement (x, y, z axes)
 typedef struct {
-    int valuex;
-    int valuey;
-    int valuez;
-} Values;
+    int x;
+    int y;
+    int z;
+} Data;
 
+// Structure to store the last 5 accelerometer measurements for each axis (x, y, z).
+// Used to compute an average. 'index' tracks the current write position;
+// reset to 0 when it reaches 5.
 typedef struct {
     int x[5];
     int y[5];
     int z[5];
-    int sample_counter;
-} ACCavg;
+    int index;
+} AccSamples;
 
+// Initializes SPI communication
 void spi_init();
+
+//  Writes the data to the SPI and returns the value read from the other device
 unsigned int spi_write(unsigned int data);
+
+// Enables the accelerometer by writing a configuration value to address 0x10 via SPI.
+// Also clears the SPI overflow flag if set.
 void acc_enable();
-int acc_value(unsigned int value1, unsigned int value2);
-Values read_acc();
+
+// Converts accelerometer values into a single 16-bit integer
+int convert_acc(unsigned int msb, unsigned int lsb);
+
+// Reads accelerometer data, collects them in a struct and returns it
+Data read_acc();
 
 #ifdef	__cplusplus
 extern "C" {

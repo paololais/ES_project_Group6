@@ -22,6 +22,7 @@
 #define DISTANCE_THRESHOLD 15 // 15 CM
 #define MAX_TASKS 5
 
+// Defines the possible states of the system's operation mode
 typedef enum {
     STATE_WAIT_FOR_START,
     STATE_MOVING,
@@ -30,18 +31,20 @@ typedef enum {
 
 // Struct to group system state's variables
 typedef struct {
-    int ref_speed;      // user input
-    int ref_yawrate;    // user input
-    int obstacle_dtc;   // To track if obstacle has been detected under threshold 
-    int time_elapsed;   // To track time no obstacle has been detected
-    State current_state;
-    parser_state pstate;
+    int ref_speed;      // user input: desired speed
+    int ref_yawrate;    // user input: desired yaw rate
+    int obstacle_dtc;   // flag: obstacle detected under threshold
+    int time_elapsed;   // timer counter for obstacle absence duration
+    int request_stop;   // event flag: request to stop motion (UART RX)
+    int request_start;  // event flag: request to start motion (UART RX)
+    State current_state; // current FSM state
+    parser_state pstate; // parser state for UART command parsing
 } SystemState;
 
 // Struct for sensor data
 typedef struct {
     int distance;
-    ACCavg acc_avg;
+    AccSamples acc;
 } SensorData;
 
 // Global variables
@@ -70,8 +73,9 @@ void __attribute__((__interrupt__, __auto_psv__)) _T3Interrupt(){
   }
 }
 
+
 // ADC
-// read distance from IR sensor
+// Reads distance from IR sensor
 int read_IR(SystemState* sys_state){    
     AD1CON1bits.SAMP = 0;
     while (!AD1CON1bits.DONE);
@@ -91,13 +95,15 @@ int read_IR(SystemState* sys_state){
     return distance;
 }
 
-// read battery voltage
-int read_battery(){
-    AD1CON1bits.SAMP = 0;
-    while (!AD1CON1bits.DONE);
-    unsigned int adc_val = ADC1BUF0; // Raw ADC value
+// Reads battery voltage
+double read_battery(){
+    AD1CON1bits.SAMP = 0;   // Stop sampling and start conversion
+    while (!AD1CON1bits.DONE);  // // Wait until conversion is complete
+    unsigned int adc_val = ADC1BUF0; // Read raw ADC value
     AD1CON1bits.SAMP = 1;
-    double battery_voltage = (adc_val / 1023.0) * 3.3 / 3.0;
+    
+    // Convert ADC value to battery voltage (in volts)
+    double battery_voltage = (adc_val / 1023.0) * 3.3 * 3.0;
     
     return battery_voltage;
 }
@@ -155,7 +161,20 @@ void uartMACK(int ack){
     IEC0bits.U1TXIE = 1;
 }
 
-// Handle received UART messages
+// Processes incoming UART data from the receive buffer, parses complete messages,
+// and updates the system state accordingly.
+//
+// For each received character:
+// - Temporarily disables RX interrupt to safely pop a character from the circular buffer.
+// - Passes the character to the message parser.
+// - When a full message is recognized, handles different message types:
+//   - "PCREF": extracts reference speed and yaw rate from the payload.
+//   - "PCSTP": handles stop command, transitioning states unless in emergency,
+//              sends acknowledgement via uartMACK.
+//   - "PCSTT": handles start command, transitioning states unless in emergency,
+//              sends acknowledgement via uartMACK.
+//
+// If an emergency state is detected during "PCSTP" or "PCSTT", sends negative ACK and breaks processing.
 void processReceivedData(SystemState* sys_state) {
     char receivedChar;
     
@@ -176,26 +195,18 @@ void processReceivedData(SystemState* sys_state) {
             }
             else if(!strcmp(sys_state->pstate.msg_type,"PCSTP")){
                 if(sys_state->current_state == STATE_EMERGENCY){
-                    uartMACK(0);
-                    break;
+                    uartMACK(0);    // Negative ACK
                 }
-                else {                    
-                    if(sys_state->current_state == STATE_MOVING){
-                        sys_state->current_state = STATE_WAIT_FOR_START;
-                    }
-                    uartMACK(1);
+                else if(sys_state->current_state == STATE_MOVING){
+                    sys_state->request_stop = 1;
                 }  
             }
             else if(!strcmp(sys_state->pstate.msg_type,"PCSTT")){
                 if(sys_state->current_state == STATE_EMERGENCY){
-                    uartMACK(0);
-                    break;
+                    uartMACK(0);    // Negative ACK
                 }
-                else {                    
-                    if(sys_state->current_state == STATE_WAIT_FOR_START){
-                        sys_state->current_state = STATE_MOVING;
-                    }
-                    uartMACK(1);
+                else if(sys_state->current_state == STATE_WAIT_FOR_START){
+                    sys_state->request_start = 1;
                 }                   
             }
         }  
@@ -213,6 +224,8 @@ void task_blink_lights(){
     LATFbits.LATF1 = !LATFbits.LATF1;
 }
 
+// Formats the IR sensor distance data into a string and sends it over UART
+// in the format "$MDIST,<distance>*"
 void task_UartIR(SensorData* sensor_data){
     char buffer[32]; 
     sprintf(buffer, "$MDIST,%d*\r\n", sensor_data->distance);
@@ -223,6 +236,8 @@ void task_UartIR(SensorData* sensor_data){
     IEC0bits.U1TXIE = 1;
 }
 
+// Reads the current battery voltage, formats it as a string with 2 decimal places,
+// and sends it over UART in the format "$MBATT,xx.xx*".
 void task_UartBatt(){
     char buffer[32];
     double battery_v = read_battery();
@@ -235,32 +250,38 @@ void task_UartBatt(){
     IEC0bits.U1TXIE = 1;
 }
 
-void task_UartAcc(ACCavg* avg){
+// Reads a new accelerometer measurement, updates a buffer of the last 5 samples,
+// computes the average for each axis, and sends the averaged data over UART
+// in the format "$MACC,x_avg,y_avg,z_avg*".
+void task_UartAcc(AccSamples* acc){
+        
+    Data values = read_acc(); // Get latest accelerometer reading
+    
+    acc->x[acc->index] = values.x;
+    acc->y[acc->index] = values.y;
+    acc->z[acc->index] = values.z;
+    
+    acc->index++;
+    if (acc->index == 5){
+        acc->index = 0;
+    }
+    
+    // Compute average of last 5 samples
     int x_avg = 0;
     int y_avg = 0;
     int z_avg = 0;
-        
-    Values values = read_acc();
-    
-    avg->x[avg->sample_counter] = values.valuex;
-    avg->y[avg->sample_counter] = values.valuey;
-    avg->z[avg->sample_counter] = values.valuez;
-    
-    avg->sample_counter++;
-    if (avg->sample_counter == 5){
-        avg->sample_counter = 0;
-    }
     
     for(int i = 0; i < 5; i++){
-        x_avg += avg->x[i];
-        y_avg += avg->y[i];
-        z_avg += avg->z[i];
+        x_avg += acc->x[i];
+        y_avg += acc->y[i];
+        z_avg += acc->z[i];
     }
     
     x_avg = x_avg / 5;   
     y_avg = y_avg / 5;
     z_avg = z_avg / 5;
     
+    // Format and send data over UART
     char buffer[32];
     sprintf(buffer, "$MACC,%d,%d,%d*\r\n", x_avg, y_avg, z_avg);
     IEC0bits.U1TXIE = 0;
@@ -271,7 +292,16 @@ void task_UartAcc(ACCavg* avg){
 }
 
 
-// STATE MACHINE
+/**
+ * FSM - State Machine for system operation
+ * 
+ * Handles transitions between three states:
+ * - WAIT_FOR_START: waits for button press to start moving
+ * - MOVING: moves with set speed and yaw rate; transitions to emergency if obstacle detected or stop if button pressed
+ * - EMERGENCY: stops motion, blinks lights; returns to WAIT_FOR_START after obstacle cleared for 5 seconds
+ * 
+ * Also manages PWM commands, button RE8 interrupt enable/disable and UART notifications.
+ */
 void FSM(SystemState* sys_state) {
     switch (sys_state->current_state) {
         case STATE_WAIT_FOR_START:             
@@ -279,11 +309,17 @@ void FSM(SystemState* sys_state) {
             if(btn_pressed){
                 btn_pressed = 0; // reset event
                 sys_state->current_state = STATE_MOVING;
-                break;
             }
-            
-            // No motion
-            pwm_move(0,0);
+            // if user sent "$PCSTT,*" via UART
+            else if (sys_state->request_start) {
+                sys_state->request_start = 0;
+                sys_state->current_state = STATE_MOVING;
+                uartMACK(1); // Positive ACK
+            }
+            else {
+                // No motion
+                pwm_move(0,0);
+            }
             
             break;
 
@@ -291,22 +327,25 @@ void FSM(SystemState* sys_state) {
             // if button RE8 has been pressed: transition to "Wait for start" state
             if(btn_pressed){
                 btn_pressed = 0; // reset event
-                sys_state->current_state = STATE_WAIT_FOR_START;    
-                break;
+                sys_state->current_state = STATE_WAIT_FOR_START;
             }
-            
+            // if user sent "$PCSTP,*" via UART
+            else if (sys_state->request_stop) {
+                sys_state->request_stop = 0;
+                sys_state->current_state = STATE_WAIT_FOR_START;
+                uartMACK(1); // Positive ACK
+            }            
             // if obstacle detected under threshold: transition to "Emergency" state
-            if(sys_state->obstacle_dtc){
+            else if(sys_state->obstacle_dtc){
                 sys_state->current_state = STATE_EMERGENCY;
                 schedInfo[1].enable = 1; // enable lights blinking                
                 IEC1bits.INT1IE = 0; // No input from button RE8 -> disable interrupt INT1E
                 uartMEMRG(1); // send UART message
-                break;
             }
-            
-            // Motion
-            pwm_move(sys_state->ref_speed, sys_state->ref_yawrate);
-            
+            else {
+                // Motion
+                pwm_move(sys_state->ref_speed, sys_state->ref_yawrate);                
+            }            
             break;
 
         case STATE_EMERGENCY:                        
@@ -327,12 +366,10 @@ void FSM(SystemState* sys_state) {
                 }
             } else {
                 // Obstacle encountered: reset time_elapsed to zero
-                sys_state->time_elapsed = 0;
+                sys_state->time_elapsed = 0; 
+                // No motion
+                pwm_move(0,0);  
             }            
-            
-            // No motion
-            pwm_move(0,0);            
-            
             break;
     }
 }
@@ -358,14 +395,11 @@ int main(void) {
     TRISFbits.TRISF1 = 0; LATFbits.LATF1 = 0;
     
   
-    SystemState sys_state = {0};
-    SensorData sensor_data = {0};
-    
     // System state initialization
+    SystemState sys_state = {0};
+    SensorData sensor_data = {0};    
     sys_state.current_state = STATE_WAIT_FOR_START;
     sys_state.pstate.state = STATE_DOLLAR;
-    sys_state.pstate.index_type = 0;
-    sys_state.pstate.index_payload = 0;
     
     // Scheduler configuration        
     // Led blink
@@ -400,7 +434,7 @@ int main(void) {
     schedInfo[4].n = 0;
     schedInfo[4].N = 50;
     schedInfo[4].f = (void (*)(void *))task_UartAcc;
-    schedInfo[4].params = &sensor_data.acc_avg;
+    schedInfo[4].params = &sensor_data.acc;
     schedInfo[4].enable = 1;
     
     // Initialize devices

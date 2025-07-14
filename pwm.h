@@ -36,7 +36,6 @@
 
 void pwm_init();
 void pwm_move(int speed_rate, int yaw);
-void pwm_stop();
 
 #ifdef	__cplusplus
 extern "C" {

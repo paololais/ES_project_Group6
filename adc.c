@@ -31,4 +31,5 @@ void adc_init() {
     AD1CSSLbits.CSS11 = 1;
 
     AD1CON1bits.ADON = 1;
+    AD1CON1bits.SAMP = 1;
 }

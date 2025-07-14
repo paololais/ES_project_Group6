@@ -54,11 +54,11 @@ unsigned int spi_write(unsigned int data){
 
 void acc_enable(){
     unsigned int addr = 0x0010;
-    unsigned int macro = 0b00001100;
+    unsigned int value = 0b00001100;
     
     ACC_CS = 0;
     spi_write(addr);
-    spi_write(macro);
+    spi_write(value);
     ACC_CS = 1;
     
     //clear overflow
@@ -67,19 +67,18 @@ void acc_enable(){
     }
 }
 
-int acc_value(unsigned int value1, unsigned int value2){
+int convert_acc(unsigned int msb, unsigned int lsb){
     int value = 0;
-    int value2_int = 0;
     
-    value1 = value1 & 0x00F0;
-    value2_int = (int) value2 << 8;
-    value = (int) (value2_int | value1) >> 4;
+    msb = msb & 0x00F0;
+    lsb = (int) lsb << 8; // left shift by 8
+    value = (int) (lsb | msb) >> 4; // put together the two bytes and right shift by 4
     
     return value;
 }
 
-Values read_acc() {
-    Values values;
+Data read_acc() {
+    Data acc;
     unsigned int value = 0x00;
     unsigned int value1;
     unsigned int value2;
@@ -87,20 +86,23 @@ Values read_acc() {
     
     ACC_CS = 0;
     spi_write(read_addr);
+    
     value1 = spi_write(value);
     value2 = spi_write(value);
-    values.valuex = acc_value(value1, value2);
+    acc.x = convert_acc(value1, value2);
+    
     value1 = spi_write(value);
     value2 = spi_write(value);
-    values.valuey = acc_value(value1, value2);
+    acc.y = convert_acc(value1, value2);
+    
     value1 = spi_write(value);
     value2 = spi_write(value);
-    values.valuez = acc_value(value1, value2);    
+    acc.z = convert_acc(value1, value2);    
     ACC_CS = 1;
     
     if (SPI1STATbits.SPIROV == 1){
         SPI1STATbits.SPIROV = 0;
     }
     
-    return values;
+    return acc;
 }
