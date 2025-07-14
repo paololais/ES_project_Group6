@@ -33,10 +33,10 @@
 
 #include <xc.h> // include processor files - each processor file is guarded.  
 
-#define BAUDRATE 9600UL
+#define BAUDRATE 115200UL
 #define FCY 72000000UL  
 #define BRGVAL ((FCY / (16 * BAUDRATE)) - 1)
-#define BUFFER_SIZE 64 // calculated based on the baudrate and the time it takes to send a character
+#define BUFFER_SIZE 64
 
 // circular buffer
 typedef struct {
