@@ -1,6 +1,8 @@
 #ifndef PARSER_H
 #define	PARSER_H
 
+#include <ctype.h>
+
 #define STATE_DOLLAR  (1) // we discard everything until a dollar is found
 #define STATE_TYPE    (2) // we are reading the type of msg until a comma is found
 #define STATE_PAYLOAD (3) // we read the payload until an asterix is found

@@ -34,6 +34,11 @@ int parse_byte(parser_state* ps, char byte) {
             } else if (ps->index_payload == 100) { // error
                 ps->state = STATE_DOLLAR;
                 ps->index_payload = 0;
+            } else if (!isdigit(byte) && byte != '-' && byte != '+' && byte != ',') { // not a valid payload
+                // Accept as payload only digits, '-', '+' and ','
+                // Otherwise return NO_MESSAGE and reset parser
+                ps->state = STATE_DOLLAR;
+                ps->index_type = 0;
             } else {
                 ps->msg_payload[ps->index_payload] = byte; // ok!
                 ps->index_payload++; // increment for the next time;
